@@ -1,3 +1,5 @@
 - 1.0 WIMLE (Works In My Lab Edition)
     - Can deploy keys nodes
     - Can check deployment on nodes
+- 1.1
+    - Fix issue when running on non Linux systems

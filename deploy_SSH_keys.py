@@ -16,7 +16,7 @@ import shutil
 
 
 PROGRAM_NAME = "SSHKeysDeployment"
-VERSION = "1.0"
+VERSION = "1.1"
 
 # Colorful constants
 RED = '\033[91m'
@@ -507,9 +507,10 @@ class SSHKeysDeployment(object):
                     )
                     time.sleep(3)
         else:
-            self.log_this.debug(
-                "This is not a Linux system"
-            )
+            if logON:
+                self.log_this.debug(
+                    "This is not a Linux system"
+                )
             sys.exit(RED +
                     "QUIT: " +
                     NOCOLOR +
