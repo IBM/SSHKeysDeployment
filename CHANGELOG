@@ -3,3 +3,8 @@
     - Can check deployment on nodes
 - 1.1
     - Fix issue when running on non Linux systems
+- 1.2
+    - Added a no prompt parameter
+    - Added proper RC exists (0=OK something else error)
+    - Fixed typos
+    - Fixed second prompt for password on failure

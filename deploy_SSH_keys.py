@@ -16,7 +16,7 @@ import shutil
 
 
 PROGRAM_NAME = "SSHKeysDeployment"
-VERSION = "1.1"
+VERSION = "1.2"
 
 # Colorful constants
 RED = '\033[91m'
@@ -28,9 +28,10 @@ NOCOLOR = '\033[0m'
 GIT_URL = "https://github.com/IBM/SSHKeysDeployment"
 
 
-
 class SSHKeysDeployment(object):
-    def __init__ (self, hosts_csv, csv_is_file, verbose):
+    def __init__(self, hosts_csv, csv_is_file, verbose, is_ansible, ansible_password):
+        self.is_ansible = is_ansible
+        self.ansible_password = ansible_password
         self.missedNodes = False
         self.__check_os(False)
         self.__check_commands(False)
@@ -44,7 +45,6 @@ class SSHKeysDeployment(object):
         self.logFile = self.__create_log_file()
         self.log_this = self.__start_logger()
         # Log init completed
-
 
     def __convert_hosts_to_list(self):
         if self.hosts_csv_is_file:
@@ -67,7 +67,7 @@ class SSHKeysDeployment(object):
                     "Going to open the CSV file for read"
                 )
                 try:
-                    csv_file_handler = open(self.hosts_csv,'r')
+                    csv_file_handler = open(self.hosts_csv, 'r')
                     self.log_this.debug(
                         "Opened the CSV file for read"
                     )
@@ -110,8 +110,8 @@ class SSHKeysDeployment(object):
                     str(self.all_hosts_list)
                 )
                 self.log_this.debug(
-                        "Going to close the file"
-                    )
+                    "Going to close the file"
+                )
                 csv_file_handler.close()
                 self.log_this.debug(
                     "CSV handler file is closed"
@@ -141,7 +141,7 @@ class SSHKeysDeployment(object):
                     "Cannot process CSV hosts passed. Are you sure is in CSV format? Please check it and try again"
                 )
                 sys.exit(1)
-        
+
         # Common regardless how hosts are passed
         self.log_this.debug(
             "All hosts added to " +
@@ -166,6 +166,29 @@ class SSHKeysDeployment(object):
 
         reachableHosts = 0
         for host in self.all_hosts_list:
+            self.log_this.debug(
+                "Going to try to resolve " +
+                host
+            )
+            try:
+                resolved_ip = socket.gethostbyname(host)
+                self.log_this.debug(
+                    "DNS name " +
+                    host +
+                    " resolves to IP address " +
+                    resolved_ip
+                )
+            except socket.gaierror:
+                self.log_this.error(
+                    "The DNS name " +
+                    host +
+                    " does not resolve any IP address"
+                )
+                self.log_this.error(
+                    "Not all hosts defined can be reached, address that and run this tool again"
+                )
+                sys.exit(1)
+
             self.log_this.debug(
                 "Going to check if we can reach host " +
                 str(host)
@@ -192,7 +215,6 @@ class SSHKeysDeployment(object):
             )
             sys.exit(1)
 
-
     def __check_hosts_possible(self):
         self.log_this.debug(
             "Going to check that the hosts passed are possible"
@@ -206,7 +228,7 @@ class SSHKeysDeployment(object):
                     host +
                     " is a possible IP address"
                 )
-            
+
             else:
                 isHostname = self.__is_hostname(host)
                 if isHostname:
@@ -237,7 +259,6 @@ class SSHKeysDeployment(object):
             )
             return False
 
-
     def __is_IP(self, IP_to_check):
         self.log_this.debug(
             "Going to check IP " +
@@ -266,7 +287,6 @@ class SSHKeysDeployment(object):
             str(IP_OK))
         return IP_OK
 
-
     def __is_hostname(self, hostname):
         # We check is RFC1035 + RFC3696 prefered options
         is_short_hostname = self.__check_is_short_hostname(hostname)
@@ -276,18 +296,18 @@ class SSHKeysDeployment(object):
                 hostname +
                 " to run the hostname check only"
             )
-            
+
             long_hostname = hostname + ".local"
             self.log_this.debug(
-            "hostname and domain merged as " +
-            long_hostname
-        )
+                "hostname and domain merged as " +
+                long_hostname
+            )
         else:
             self.log_this.debug(
                 "hostname seems to be a FQDN, we test it as is"
             )
             long_hostname = hostname
-        
+
         RFC3696_pref = re.compile(
             r'^(([a-zA-Z]{1})|([a-zA-Z]{1}[a-zA-Z]{1})|'
             r'([a-zA-Z]{1}[0-9]{1})|([0-9]{1}[a-zA-Z]{1})|'
@@ -310,7 +330,6 @@ class SSHKeysDeployment(object):
                 "RFC3696 prefered format"
             )
         return(good_FQDN)
-
 
     def __check_is_short_hostname(self, hostname):
         self.log_this.debug(
@@ -335,14 +354,13 @@ class SSHKeysDeployment(object):
             is_short_hostname = False
         return is_short_hostname
 
-
     def __create_log_file(self):
         fullLogFile = (
-                    self.log_dir + 
-                    "/" + 
-                    str(datetime.datetime.now().strftime('%Y_%m_%d_%H_%M_%S')) + 
-                    '.log'
-                )
+            self.log_dir +
+            "/" +
+            str(datetime.datetime.now().strftime('%Y_%m_%d_%H_%M_%S')) +
+            '.log'
+        )
         exists = os.path.exists(self.log_dir)
         if exists:
             isDir = os.path.isdir(self.log_dir)
@@ -352,9 +370,9 @@ class SSHKeysDeployment(object):
             else:
                 # It exists and it is a file ... we stop here
                 sys.exit(
-                    RED + 
-                    "QUIT: " + 
-                    NOCOLOR + 
+                    RED +
+                    "QUIT: " +
+                    NOCOLOR +
                     "Log directory " +
                     self.log_dir +
                     " is a file, not a directory\n")
@@ -365,14 +383,13 @@ class SSHKeysDeployment(object):
                 return fullLogFile
             except BaseException:
                 sys.exit(
-                    RED + 
-                    "QUIT: " + 
-                    NOCOLOR + 
+                    RED +
+                    "QUIT: " +
+                    NOCOLOR +
                     "Cannot create directory " +
                     self.log_dir +
                     " \n"
                 )
-
 
     def __start_logger(self):
         log_format = '%(asctime)s %(levelname)-4s:\t %(message)s'
@@ -391,24 +408,22 @@ class SSHKeysDeployment(object):
         log_anchor = logging.getLogger(self.logFile)
         return log_anchor
 
-
     def __show_header(self):
         # Say hello and give chance to disagree
         try:
             while True:
                 print("")
                 print(GREEN +
-                    "Welcome to " +
-                    PROGRAM_NAME +
-                    ", version " +
-                    str(VERSION) +
-                    NOCOLOR)
+                      "Welcome to " +
+                      PROGRAM_NAME +
+                      ", version " +
+                      str(VERSION) +
+                      NOCOLOR)
                 print("")
                 print(
-                    "Please use " + 
+                    "Please use " +
                     GIT_URL +
-                    " to get latest versions and report issues about this tool."
-                )
+                    " to get latest versions and report issues about this tool.")
                 print("")
                 if self.check_only:
                     self.log_this.debug(
@@ -418,8 +433,7 @@ class SSHKeysDeployment(object):
                         GREEN +
                         "This tool will check the SSH root keys from this node to all " +
                         "the nodes defined for root user" +
-                        NOCOLOR
-                    )
+                        NOCOLOR)
                 else:
                     self.log_this.debug(
                         "This is a deploy run, changes to system[s] are going to happen"
@@ -428,8 +442,7 @@ class SSHKeysDeployment(object):
                         YELLOW +
                         "This tool will copy the SSH root keys from this node to all " +
                         "the nodes defined for root user" +
-                        NOCOLOR
-                    )
+                        NOCOLOR)
                 print("")
                 print(
                     "Debug logs are saved to " +
@@ -460,7 +473,6 @@ class SSHKeysDeployment(object):
             )
             print("")
             sys.exit("Have a nice day! Bye.\n")
-            
 
     def __check_commands(self, logON):
         commands_to_check = ['ssh', 'ssh-copy-id', 'sshpass']
@@ -470,22 +482,31 @@ class SSHKeysDeployment(object):
                 str(commands_to_check) +
                 " are avaialble"
             )
-        
+
         for command in commands_to_check:
             if shutil.which(command) is None:
                 if logON:
                     self.log_this.error(
-                        RED + "QUIT: " + NOCOLOR + "cannot find command " + command + ". Please install it."
-                    )
+                        RED +
+                        "QUIT: " +
+                        NOCOLOR +
+                        "cannot find command " +
+                        command +
+                        ". Please install it.")
                     sys.exit(1)
-                sys.exit(RED + "QUIT: " + NOCOLOR + "cannot find command " + command + ". Please install it.\n")
+                sys.exit(
+                    RED +
+                    "QUIT: " +
+                    NOCOLOR +
+                    "cannot find command " +
+                    command +
+                    ". Please install it.\n")
             elif logON:
                 self.log_this.debug(
                     "Command '" +
                     str(command) +
                     "' found in path"
                 )
-
 
     def __check_os(self, logON):
         thisSystem = platform.system()
@@ -494,10 +515,10 @@ class SSHKeysDeployment(object):
                 self.log_this.debug(
                     "This is a Linux system"
                 )
-                thisDistribution = platform.dist()[0]
+                thisDistribution = subprocess.check_output("cat /etc/system-release".split(" "),stderr=subprocess.STDOUT).strip().decode()
                 thisUname = platform.uname()
                 self.log_this.debug(str(thisUname))
-                if thisDistribution == "redhat" or "centos":
+                if "Red Hat" in thisDistribution:
                     self.log_this.debug(
                         "This is a RedHat based system"
                     )
@@ -512,10 +533,9 @@ class SSHKeysDeployment(object):
                     "This is not a Linux system"
                 )
             sys.exit(RED +
-                    "QUIT: " +
-                    NOCOLOR +
-                    "this tool needs to be run in a Linux system\n")
-
+                     "QUIT: " +
+                     NOCOLOR +
+                     "this tool needs to be run in a Linux system\n")
 
     def __check_root_user(self, logON):
         # We might need to relax this for SUDO environments, to be seen
@@ -536,10 +556,9 @@ class SSHKeysDeployment(object):
                     "The tool is not being run as root or via sudo"
                 )
             sys.exit(RED +
-                    "QUIT: " +
-                    NOCOLOR +
-                    "this tool needs to be run as root or via sudo\n")
-
+                     "QUIT: " +
+                     NOCOLOR +
+                     "this tool needs to be run as root or via sudo\n")
 
     def __ask_password(self):
         while True:
@@ -566,7 +585,6 @@ class SSHKeysDeployment(object):
                 continue
         return p1
 
-
     def __ask_key(self):
         try:
             while True:
@@ -574,26 +592,34 @@ class SSHKeysDeployment(object):
                     "Going to ask for the key file, we offer the default " +
                     self.privateKey
                 )
-                print("")
-                print("Going to ask you which key to be used from this node, if not input passed the in between brakets file is used")
-                print("")
-                sshPrivateKey = input(
-                    "Please type the SSH private key to use for deployment to the nodes [" +
-                    self.privateKey +
-                    "]: ")
-                if sshPrivateKey == "":
+                if self.is_ansible:
                     self.log_this.debug(
-                        "User selected to use the default key " +
-                        self.privateKey
-                    )
+                        "This is an ansible run, no prompt, we use default key " +
+                        self.privateKey)
                     sshPrivateKey = self.privateKey
                     sshPublicKey = self.publicKey
                 else:
-                    self.log_this.debug(
-                        "User has entered " +
-                        sshPrivateKey +
-                        "."
-                    )
+                    print("")
+                    print(
+                        "Going to ask you which key to be used from this node, if not input passed the in between brakets file is used")
+                    print("")
+                    sshPrivateKey = input(
+                        "Please type the SSH private key to use for deployment to the nodes [" +
+                        self.privateKey +
+                        "]: ")
+                    if sshPrivateKey == "":
+                        self.log_this.debug(
+                            "User selected to use the default key " +
+                            self.privateKey
+                        )
+                        sshPrivateKey = self.privateKey
+                        sshPublicKey = self.publicKey
+                    else:
+                        self.log_this.debug(
+                            "User has entered " +
+                            sshPrivateKey +
+                            "."
+                        )
                 privateKeyFileExists = self.__check_file_exists(sshPrivateKey)
                 if privateKeyFileExists:
                     self.log_this.debug(
@@ -612,7 +638,7 @@ class SSHKeysDeployment(object):
                 )
                 self.log_this.debug(
                     "Going to check if SSH public key " +
-                    sshPublicKey + 
+                    sshPublicKey +
                     " exists"
                 )
                 publicKeyFileExists = self.__check_file_exists(sshPrivateKey)
@@ -636,13 +662,13 @@ class SSHKeysDeployment(object):
                         sshPrivateKey +
                         " > " +
                         sshPublicKey +
-                        " and run this tool again"
-                    )
+                        " and run this tool again")
                     sys.exit(1)
                 self.log_this.debug(
                     "We have both SSH private and public key files, lets check if they match"
                 )
-                keysMatch = self.__verify_ssh_keys_match(sshPrivateKey,sshPublicKey)
+                keysMatch = self.__verify_ssh_keys_match(
+                    sshPrivateKey, sshPublicKey)
                 if keysMatch:
                     self.log_this.debug(
                         "We have the needed key information from user, we move on"
@@ -663,8 +689,7 @@ class SSHKeysDeployment(object):
             print("Have a nice day")
             sys.exit(1)
 
-
-    def __verify_ssh_keys_match(self,sshPrivateKey,sshPublicKey):
+    def __verify_ssh_keys_match(self, sshPrivateKey, sshPublicKey):
         self.log_this.debug(
             "Going to check if SSH private key " +
             sshPrivateKey +
@@ -713,19 +738,17 @@ class SSHKeysDeployment(object):
                 sshPrivateKey
             )
             self.log_this.info(
-                    "You can try to generate the public key with a command similar to " +
-                    "ssh-keygen -y -f " +
-                    sshPrivateKey +
-                    " > " +
-                    sshPublicKey +
-                    " and run this tool again"
-                )
+                "You can try to generate the public key with a command similar to " +
+                "ssh-keygen -y -f " +
+                sshPrivateKey +
+                " > " +
+                sshPublicKey +
+                " and run this tool again")
             sys.exit(1)
         self.log_this.debug(
             "We are done with SSH keys checks"
         )
         return True
-
 
     def __can_reach(self, dsthost):
         dstHostAlive = False
@@ -778,8 +801,7 @@ class SSHKeysDeployment(object):
             )
         return dstHostAlive
 
-
-    def __checkSSHPublicKey(self,dsthost):
+    def __checkSSHPublicKey(self, dsthost):
         self.log_this.debug(
             "Going to attempt SSH passwordless command to host " +
             str(dsthost)
@@ -792,13 +814,13 @@ class SSHKeysDeployment(object):
         SSHcommandList = SSHcommand.split(" ")
         try:
             self.log_this.debug(
-                "Going to run " + 
+                "Going to run " +
                 SSHcommand
             )
             dateOutput = subprocess.check_output(
                 SSHcommandList,
                 stderr=subprocess.STDOUT
-                ).strip().decode()
+            ).strip().decode()
             self.log_this.debug(
                 "Got output from try wihtout password for host " +
                 dsthost +
@@ -813,7 +835,6 @@ class SSHKeysDeployment(object):
             )
             self.missedNodes = True
 
-
     def __copySSHPublicKey(self, dsthost):
         self.log_this.debug(
             "Going to attempt to add public key from this node into " +
@@ -824,17 +845,18 @@ class SSHKeysDeployment(object):
             " -o ConnectTimeout=2 -o StrictHostKeyChecking=no " + dsthost
         SSHPasscommand = "sshpass -p " + self.commonPassword + " " + SSHcommand
         SSHPasscommandList = SSHPasscommand.split(" ")
+        self.log_this.debug(
+            "Going to run " +
+            "sshpass -p ********" +
+            " " +
+            SSHcommand
+        )
         try:
-            self.log_this.debug(
-                "Going to run " +
-                "sshpass -p ********" + 
-                " " + 
-                SSHcommand
-            )
+            
             commonPasswordCopyOutput = subprocess.check_output(
                 SSHPasscommandList,
                 stderr=subprocess.STDOUT
-                ).strip().decode()
+            ).strip().decode()
             self.log_this.debug(
                 "Got output from try wiht common password for host " +
                 dsthost +
@@ -842,42 +864,51 @@ class SSHKeysDeployment(object):
                 commonPasswordCopyOutput
             )
         except BaseException:
-            self.log_this.warning(
-                "Connecting to host " +
-                dsthost +
-                " with the common password has failed. " +
-                "We are going to ask for the password for this node to try again"
-            )
-            thisNodePass = self.__ask_password()
-            thisSSHPasscommand = "sshpass -p " + thisNodePass + " " + SSHcommand
-            thisSSHPasscommandList = SSHPasscommand.split(" ")
-            try:
-                self.log_this.debug(
-                    "Going to run " +
-                    "sshpass -p ********" + 
-                    " " + 
-                    thisSSHPasscommandList
-                )
-                thisPasswordCopyOutput = subprocess.check_output(
-                    SSHPasscommandList,
-                    stderr=subprocess.STDOUT
-                    ).strip().decode()
-                self.log_this.debug(
-                    "Got output from try wiht common password for host " +
-                    dsthost +
-                    ": " +
-                    thisPasswordCopyOutput
-                )
-            except BaseException:
+            if self.is_ansible:
                 self.log_this.error(
                     "Connecting to host " +
                     dsthost +
-                    " with the entered password has failed. " +
-                    "We stop trying to process this node"
+                    " with the common password has failed. All nodes need to have " +
+                    "password"
                 )
                 self.missedNodes = True
+            else:
+                self.log_this.warning(
+                    "Connecting to host " +
+                    dsthost +
+                    " with the common password has failed. " +
+                    "We are going to ask for the password for this node to try again")
                 
-        
+                thisNodePass = self.__ask_password()
+                thisSSHPasscommand = "sshpass -p " + thisNodePass + " " + SSHcommand
+                thisSSHPasscommandList = thisSSHPasscommand.split(" ")
+                self.log_this.debug(
+                    "Going to run " +
+                    "sshpass -p ********" +
+                    " " +
+                    SSHcommand
+                )
+                try:
+                    thisPasswordCopyOutput = subprocess.check_output(
+                        thisSSHPasscommandList,
+                        stderr=subprocess.STDOUT
+                    ).strip().decode()
+                    self.log_this.debug(
+                        "Got output from try with common password for host " +
+                        dsthost +
+                        ": " +
+                        thisPasswordCopyOutput
+                    )
+                except BaseException:
+                    self.log_this.error(
+                        "Connecting to host " +
+                        dsthost +
+                        " with the entered password has failed. " +
+                        "We stop trying to process this node"
+                    )
+                    self.missedNodes = True
+
+
     def __check_file_exists(self, fileToCheck):
         self.log_this.debug(
             "Going to check if file " +
@@ -899,7 +930,6 @@ class SSHKeysDeployment(object):
             )
         return fileExists
 
-
     def check(self):
         self.check_only = True
         self.log_this.debug(
@@ -908,7 +938,8 @@ class SSHKeysDeployment(object):
         self.__check_os(True)
         self.__check_root_user(True)
         self.__check_commands(True)
-        self.__show_header()
+        if not self.is_ansible:
+            self.__show_header()
         self.__ask_key()
         self.__convert_hosts_to_list()
         self.log_this.info(
@@ -924,7 +955,7 @@ class SSHKeysDeployment(object):
                 "Going to process node " +
                 host +
                 ". This is node " +
-                str(hostNumber) + 
+                str(hostNumber) +
                 " of " +
                 str(self.all_hosts_number) +
                 " to test"
@@ -932,16 +963,24 @@ class SSHKeysDeployment(object):
             self.__checkSSHPublicKey(host)
             self.log_this.info(
                 "Successfully tested node " +
-                host 
+                host
             )
         if self.missedNodes:
             self.log_this.warning(
                 "Some node[s] did not pass the check, check above ouptut"
             )
+            self.log_this.debug(
+                "Going to exit with RC=2"
+            )
+            sys.exit(2)
         else:
             self.log_this.info(
                 "All nodes were successfully tested"
             )
+            self.log_this.debug(
+                "Going to exit with RC=0"
+            )
+            sys.exit(0)
 
 
     def deploy(self):
@@ -952,7 +991,8 @@ class SSHKeysDeployment(object):
         self.__check_os(True)
         self.__check_root_user(True)
         self.__check_commands(True)
-        self.__show_header()
+        if not self.is_ansible:
+            self.__show_header()
         self.__ask_key()
         self.__convert_hosts_to_list()
         self.log_this.info(
@@ -961,7 +1001,10 @@ class SSHKeysDeployment(object):
             " into the nodes " +
             str(self.hosts_csv)
         )
-        self.commonPassword = self.__ask_password()
+        if self.is_ansible:
+            self.commonPassword = self.ansible_password
+        else:
+            self.commonPassword = self.__ask_password()
         hostNumber = 0
         for host in self.all_hosts_list:
             hostNumber = hostNumber + 1
@@ -969,7 +1012,7 @@ class SSHKeysDeployment(object):
                 "Going to process node " +
                 host +
                 ". This is node " +
-                str(hostNumber) + 
+                str(hostNumber) +
                 " of " +
                 str(self.all_hosts_number) +
                 " to process"
@@ -977,16 +1020,24 @@ class SSHKeysDeployment(object):
             self.__copySSHPublicKey(host)
             self.log_this.info(
                 "Successfully processed node " +
-                host 
+                host
             )
         if self.missedNodes:
             self.log_this.warning(
-                "Some node[s] was not properly processed, check above ouptut"
+                "Some node[s] was/were not properly processed, check above ouptut"
             )
+            self.log_this.debug(
+                "Going to exit with RC=2"
+            )
+            sys.exit(2)
         else:
             self.log_this.info(
                 "All nodes were successfully processed"
             )
+            self.log_this.debug(
+                "Going to exit with RC=0"
+            )
+            sys.exit(0)
 
 
 def parse_arguments():
@@ -996,13 +1047,23 @@ def parse_arguments():
     )
 
     parser.add_argument(
-    '-c',
-    '--check',
-    required=False,
-    action='store_true',
-    dest='is_check',
-    help='Perform only a passwordless SSH connection from this node',
-    default=False
+        '--ansible',
+        required=False,
+        action='store',
+        dest='ansible_pass_str',
+        help="Pass a common password and run deploy password with no prompts",
+        metavar='ANSIBLE_PASSWORD',
+        type=str
+    )
+
+    parser.add_argument(
+        '-c',
+        '--check',
+        required=False,
+        action='store_true',
+        dest='is_check',
+        help='Perform only a passwordless SSH connection from this node',
+        default=False
     )
 
     parser.add_argument(
@@ -1023,7 +1084,7 @@ def parse_arguments():
         help='CSV list of hosts to deploy SSH keys',
         metavar='CSV_HOSTS',
         type=str)
-    
+
     hostCSV.add_argument(
         '-f',
         '--hosts-file',
@@ -1051,13 +1112,26 @@ def parse_arguments():
         is_file = False
     else:
         # We should not hit this
-        sys.exit(RED + "QUIT: " + NOCOLOR + "Unexpected error parsing arguments\n")
-    return hosts_csv,is_file,args.be_verbose,args.is_check
+        sys.exit(
+            RED +
+            "QUIT: " +
+            NOCOLOR +
+            "Unexpected error parsing arguments\n")
+        
+    if args.ansible_pass_str:
+        is_ansible = True
+        ansible_passwd = args.ansible_pass_str
+    else:
+        is_ansible = False
+        ansible_passwd = ""
+    
+    return hosts_csv, is_file, args.be_verbose, args.is_check, is_ansible, ansible_passwd
 
 
 def main():
-    hosts_csv, csv_is_file, be_verbose, only_check = parse_arguments()
-    thisDeploySSHKeys = SSHKeysDeployment(hosts_csv,csv_is_file,be_verbose)
+    hosts_csv, csv_is_file, be_verbose, only_check, is_ansible , ansible_passwd = parse_arguments()
+    thisDeploySSHKeys = SSHKeysDeployment(
+        hosts_csv, csv_is_file, be_verbose, is_ansible, ansible_passwd)
     if only_check:
         thisDeploySSHKeys.check()
     else:
